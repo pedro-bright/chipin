@@ -217,7 +217,7 @@ Multiple receipt images stored as JSON array string in `receipt_image_url` text 
 - **PWA:** Service worker (`public/sw.js`), manifest (`public/manifest.json`), install prompt
 - **Analytics:** Vercel Analytics (`@vercel/analytics`)
 - **OG Images:** Dynamic via `/api/og` route (ImageResponse JSX)
-- **No GitHub remote** — local-only repository
+- **GitHub:** `pedro-bright/chipin` (created Apr 1, 2026) — pushes to `origin main`
 
 ## Conventions and Gotchas
 
