@@ -283,6 +283,13 @@ export function BillView({ bill, isCreator, hostKey: initialHostKey, isAuthHost,
               <Share2 className="w-3.5 h-3.5" />
               Share
             </Button>
+            <button
+              onClick={() => setShowShareToast(false)}
+              className="shrink-0 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted/50"
+              aria-label="Dismiss"
+            >
+              <span className="text-base leading-none">×</span>
+            </button>
           </div>
         )}
 
