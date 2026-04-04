@@ -19,7 +19,7 @@ Required env vars (set in `.env.local` and Vercel):
 
 ## Architecture
 
-**Stack:** Next.js 16 (App Router) + React 19 + Supabase (Postgres + Storage + Realtime) + Tailwind v4 + shadcn-style UI + Azure OpenAI (GPT-5.4 Vision) + Vercel
+**Stack:** Next.js 16.2.0 (App Router) + React 19 + Supabase (Postgres + Storage + Realtime) + Tailwind v4 + shadcn-style UI + Azure OpenAI (GPT-5.4 Vision) + Vercel
 
 **Key patterns:**
 - App Router with Server Components for pages, `'use client'` for interactive views
