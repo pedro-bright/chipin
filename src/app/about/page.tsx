@@ -31,7 +31,10 @@ export default function AboutPage() {
       <div className="max-w-2xl mx-auto px-4 py-12 space-y-16">
         {/* Hero */}
         <div className="text-center space-y-5 enter">
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight font-[family-name:var(--font-main)]">
+          <h1
+            className="text-4xl sm:text-5xl font-extrabold tracking-tight font-[family-name:var(--font-main)]"
+            aria-label="About TidyTab"
+          >
             About{' '}
             <span className="font-extrabold">tidy</span>
             <span className="text-primary font-extrabold">tab</span>
