@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -23,6 +23,12 @@ import {
   Plus,
   DollarSign,
   Trash2,
+  Send,
+  Clock3,
+  ChevronDown,
+  ChevronUp,
+  Settings2,
+  Receipt,
 } from 'lucide-react';
 
 export default function ManagePage() {
@@ -45,6 +51,10 @@ export default function ManagePage() {
   const [deletingContribId, setDeletingContribId] = useState<string | null>(null);
   const [confirmDeleteContrib, setConfirmDeleteContrib] = useState<Contribution | null>(null);
   const [settlingBill, setSettlingBill] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [reminderCopied, setReminderCopied] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showItems, setShowItems] = useState(false);
 
   // Editable fields
   const [restaurantName, setRestaurantName] = useState('');
@@ -253,8 +263,72 @@ export default function ManagePage() {
   const activeContributions = (bill.contributions || []).filter(
     (c: Contribution) => (c as unknown as { note?: string }).note !== '[cancelled]' && (c as unknown as { note?: string }).note !== '[pending]'
   );
+  const pendingContributions = (bill.contributions || []).filter(
+    (c: Contribution) => (c as unknown as { note?: string }).note === '[pending]'
+  );
+  const confirmedContributions = activeContributions
+    .slice()
+    .sort((a: Contribution, b: Contribution) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const totalPaid = activeContributions.reduce((sum: number, c: Contribution) => sum + Number(c.amount), 0);
   const remaining = Math.max(Math.round((bill.total - totalPaid) * 100) / 100, 0);
+  const totalContributionCount = (bill.contributions || []).filter(
+    (c: Contribution) => (c as unknown as { note?: string }).note !== '[cancelled]'
+  ).length;
+  const paidCount = confirmedContributions.length;
+  const pendingCount = pendingContributions.length;
+  const attendeeCount = bill.bill_attendees?.length || bill.person_count || 0;
+  const unpaidCount = attendeeCount > 0 ? Math.max(attendeeCount - paidCount - pendingCount, 0) : 0;
+  const progressPercent = bill.total > 0 ? Math.min((totalPaid / bill.total) * 100, 100) : 0;
+  const billUrl = typeof window !== 'undefined' ? `${window.location.origin}/b/${slug}` : `/b/${slug}`;
+  const reminderText = pendingCount > 0
+    ? `Quick tidyTab check for ${bill.restaurant_name || 'the bill'}: ${formatCurrency(remaining)} is still outstanding, and ${pendingCount} payment${pendingCount > 1 ? 's are awaiting confirmation' : ' is awaiting confirmation'}. Pay here: ${billUrl}`
+    : `Quick reminder for ${bill.restaurant_name || 'the bill'}: ${remaining > 0 ? `${formatCurrency(remaining)} is still left to cover. ` : ''}Pay here: ${billUrl}`;
+  const statusLabel = status === 'settled'
+    ? 'Settled'
+    : remaining <= 0
+      ? 'Ready to settle'
+      : pendingCount > 0
+        ? 'Needs review'
+        : 'Collection in progress';
+  const statusTone = status === 'settled'
+    ? 'text-success'
+    : remaining <= 0
+      ? 'text-success'
+      : pendingCount > 0
+        ? 'text-amber-600 dark:text-amber-400'
+        : 'text-primary';
+
+  const handleCopyLink = async () => {
+    await navigator.clipboard.writeText(billUrl);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  const handleCopyReminder = async () => {
+    await navigator.clipboard.writeText(reminderText);
+    setReminderCopied(true);
+    setTimeout(() => setReminderCopied(false), 2500);
+  };
+
+  const handleNativeShare = async () => {
+    if (!navigator.share) {
+      await handleCopyLink();
+      return;
+    }
+
+    setSharing(true);
+    try {
+      await navigator.share({
+        title: bill.restaurant_name || 'TidyTab bill',
+        text: reminderText,
+        url: billUrl,
+      });
+    } catch {
+      // ignore cancel
+    } finally {
+      setSharing(false);
+    }
+  };
 
   return (
     <main className="bg-background">
@@ -303,109 +377,112 @@ export default function ManagePage() {
           </Card>
         )}
 
-        {/* Summary */}
+        {/* Collection Status */}
         <Card className={`${status === 'settled' ? 'bg-success/5 border-success/20' : 'bg-primary/5 border-primary/20'}`}>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-xl font-bold font-[family-name:var(--font-main)]">{formatCurrency(bill.total)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Paid</p>
-                <p className="text-xl font-bold text-success font-[family-name:var(--font-main)]">{formatCurrency(totalPaid)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{status === 'settled' ? 'Status' : 'Remaining'}</p>
-                <p className={`text-xl font-bold font-[family-name:var(--font-main)] ${status === 'settled' ? 'text-success' : 'text-primary'}`}>
-                  {status === 'settled' ? '✓ Settled' : formatCurrency(remaining)}
+          <CardContent className="pt-6 space-y-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Host collection status</p>
+                <h2 className={`text-2xl font-bold font-[family-name:var(--font-main)] ${statusTone}`}>
+                  {statusLabel}
+                </h2>
+                <p className="text-sm text-muted-foreground max-w-md">
+                  {status === 'settled'
+                    ? 'This bill is closed out and archived.'
+                    : remaining <= 0
+                      ? 'Everything is covered. One tap settles and clears it off your plate.'
+                      : pendingCount > 0
+                        ? `${formatCurrency(remaining)} is still open, and you have ${pendingCount} payment${pendingCount > 1 ? 's' : ''} waiting for confirmation.`
+                        : `${formatCurrency(remaining)} is still open. Share the link or record outside payments to finish this off.`}
                 </p>
               </div>
+              <div className="grid grid-cols-2 gap-2 sm:w-[260px]">
+                <Button onClick={handleNativeShare} className="gap-2" disabled={sharing}>
+                  <Share2 className="w-4 h-4" />
+                  {sharing ? 'Sharing...' : 'Share'}
+                </Button>
+                <Button onClick={handleCopyReminder} variant="outline" className="gap-2">
+                  {reminderCopied ? <CheckCircle2 className="w-4 h-4 text-success" /> : <Send className="w-4 h-4" />}
+                  {reminderCopied ? 'Copied' : 'Copy Reminder'}
+                </Button>
+                <Button onClick={handleQuickSettle} variant="outline" className="gap-2 col-span-2" disabled={settlingBill || status === 'settled'}>
+                  <CheckCircle2 className="w-4 h-4" />
+                  {status === 'settled' ? 'Already Settled' : settlingBill ? 'Settling...' : 'Mark as Settled'}
+                </Button>
+              </div>
             </div>
-            {/* Progress bar */}
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-2xl bg-background/80 border border-border/60 p-4 text-center">
+                <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Total</p>
+                <p className="mt-1 text-xl font-bold font-[family-name:var(--font-main)] font-tnum">{formatCurrency(bill.total)}</p>
+              </div>
+              <div className="rounded-2xl bg-background/80 border border-border/60 p-4 text-center">
+                <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Collected</p>
+                <p className="mt-1 text-xl font-bold text-success font-[family-name:var(--font-main)] font-tnum">{formatCurrency(totalPaid)}</p>
+              </div>
+              <div className="rounded-2xl bg-background/80 border border-border/60 p-4 text-center">
+                <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Remaining</p>
+                <p className="mt-1 text-xl font-bold text-primary font-[family-name:var(--font-main)] font-tnum">{status === 'settled' ? formatCurrency(0) : formatCurrency(remaining)}</p>
+              </div>
+              <div className="rounded-2xl bg-background/80 border border-border/60 p-4 text-center">
+                <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Payments</p>
+                <p className="mt-1 text-xl font-bold font-[family-name:var(--font-main)] font-tnum">{paidCount}{pendingCount > 0 ? ` + ${pendingCount}` : ''}</p>
+              </div>
+            </div>
+
             {bill.total > 0 && (
-              <div className="mt-4 h-2 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-success to-emerald-300 rounded-full transition-all duration-700"
-                  style={{ width: `${Math.min((totalPaid / bill.total) * 100, 100)}%` }}
-                />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{progressPercent.toFixed(0)}% covered</span>
+                  <span>{paidCount} confirmed{pendingCount > 0 ? ` • ${pendingCount} pending` : ''}</span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-success to-emerald-300 rounded-full transition-all duration-700"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Edit Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Edit Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-1 block">Restaurant Name</label>
-              <Input value={restaurantName} onChange={(e) => setRestaurantName(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Venmo Handle</label>
-              <Input value={venmoHandle} onChange={(e) => setVenmoHandle(sanitizeVenmoHandle(e.target.value))} />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Zelle Info</label>
-              <Input value={zelleInfo} onChange={(e) => setZelleInfo(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">CashApp Handle</label>
-              <Input value={cashappHandle} onChange={(e) => setCashappHandle(sanitizeCashAppHandle(e.target.value))} />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">PayPal.me Username</label>
-              <Input value={paypalHandle} onChange={(e) => setPaypalHandle(sanitizePayPalHandle(e.target.value))} placeholder="e.g., johndoe" />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Status</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="published">Published</option>
-                <option value="settled">Settled (Closed)</option>
-              </select>
-            </div>
-            <Button onClick={handleSave} className="w-full gap-2" disabled={saving}>
-              {saving ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Saving...
-                </>
-              ) : saved ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4" /> Saved!
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" /> Save Changes
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Items */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Items ({bill.bill_items?.length || 0})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y divide-border/60">
-              {bill.bill_items?.map((item: BillItem) => (
-                <div key={item.id} className="flex justify-between py-2">
-                  <span>{item.name} {item.quantity > 1 ? `×${item.quantity}` : ''}</span>
-                  <span className="font-medium">{formatCurrency(Number(item.price))}</span>
+        {/* Needs Attention */}
+        {(pendingCount > 0 || remaining > 0 || unpaidCount > 0) && status !== 'settled' && (
+          <Card className="border-amber-500/25 bg-amber-500/5">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Clock3 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                Needs Attention
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pendingCount > 0 && (
+                <div className="flex items-start justify-between gap-3 rounded-xl border border-amber-500/15 bg-background/70 p-3">
+                  <div>
+                    <p className="font-medium">Confirm pending payments</p>
+                    <p className="text-sm text-muted-foreground">
+                      {pendingCount} payment{pendingCount > 1 ? 's are' : ' is'} waiting for you to confirm.
+                    </p>
+                  </div>
+                  <Badge variant="secondary">{pendingCount}</Badge>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              )}
+              {remaining > 0 && (
+                <div className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background/70 p-3">
+                  <div>
+                    <p className="font-medium">Keep collection moving</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatCurrency(remaining)} is still outstanding{unpaidCount > 0 ? ` across about ${unpaidCount} unpaid ${unpaidCount === 1 ? 'person' : 'people'}` : ''}.
+                    </p>
+                  </div>
+                  <Badge variant="outline">Open balance</Badge>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Add Contribution Manually */}
         <Card className="border-primary/30">
@@ -487,49 +564,76 @@ export default function ManagePage() {
           </CardContent>
         </Card>
 
+        {/* Share / Remind */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Share2 className="w-5 h-5 text-primary" />
+              Share & Remind
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={billUrl}
+                className="font-mono text-sm"
+              />
+              <Button
+                variant="outline"
+                className="gap-1.5 shrink-0"
+                onClick={handleCopyLink}
+              >
+                {linkCopied ? (
+                  <><CheckCircle2 className="w-4 h-4 text-success" /> Copied!</>
+                ) : (
+                  <><Copy className="w-4 h-4" /> Copy</>
+                )}
+              </Button>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 space-y-3">
+              <p className="text-sm font-medium">Suggested reminder</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">{reminderText}</p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button onClick={handleCopyReminder} variant="outline" className="gap-2">
+                  {reminderCopied ? <CheckCircle2 className="w-4 h-4 text-success" /> : <Send className="w-4 h-4" />}
+                  {reminderCopied ? 'Reminder copied' : 'Copy reminder text'}
+                </Button>
+                <Button onClick={handleNativeShare} className="gap-2" disabled={sharing}>
+                  <Share2 className="w-4 h-4" />
+                  {sharing ? 'Sharing...' : 'Share bill'}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Contributions */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Contributions ({bill.contributions?.length || 0})</CardTitle>
+            <CardTitle className="text-lg">Payments ({totalContributionCount})</CardTitle>
           </CardHeader>
-          <CardContent>
-            {bill.contributions?.length === 0 ? (
-              <div className="text-center py-8 space-y-3">
-                <p className="text-3xl">📬</p>
-                <p className="text-muted-foreground font-medium">
-                  No payments recorded yet
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Share the link below and watch payments roll in!
-                </p>
-              </div>
-            ) : (
+          <CardContent className="space-y-5">
+            {pendingContributions.length > 0 && (
               <div className="space-y-2">
-                {bill.contributions
-                  ?.sort((a: Contribution, b: Contribution) =>
-                    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                  )
-                  .filter((c: Contribution) => (c as unknown as { note?: string }).note !== '[cancelled]')
-                  .map((c: Contribution) => {
-                    const isPending = (c as unknown as { note?: string }).note === '[pending]';
-                    return (
-                    <div key={c.id} className={`flex items-center justify-between py-2.5 px-3 -mx-3 rounded-xl hover:bg-muted/30 transition-colors group ${isPending ? 'bg-amber-500/5' : ''}`}>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium truncate">
-                          {c.person_name}
-                          {isPending && (
-                            <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">⏳ Awaiting</span>
-                          )}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {c.payment_method}
-                          {!isPending && (c as unknown as { note?: string }).note && (
-                            <span className="ml-1 opacity-60">· {(c as unknown as { note?: string }).note}</span>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {isPending ? (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">Needs confirmation</p>
+                  <Badge variant="secondary">{pendingContributions.length}</Badge>
+                </div>
+                <div className="space-y-2">
+                  {pendingContributions
+                    .slice()
+                    .sort((a: Contribution, b: Contribution) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map((c: Contribution) => (
+                      <div key={c.id} className="flex items-center justify-between py-3 px-3 rounded-xl bg-amber-500/5 border border-amber-500/15 gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate">{c.person_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {c.payment_method} · awaiting confirmation
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="outline">{formatCurrency(Number(c.amount))}</Badge>
                           <button
                             onClick={async () => {
                               try {
@@ -538,16 +642,53 @@ export default function ManagePage() {
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ contribution_id: c.id, note: null }),
                                 });
-                                window.location.reload();
-                              } catch { /* ignore */ }
+                                await fetchBill();
+                              } catch {
+                                setError('Failed to confirm payment');
+                              }
                             }}
                             className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-success/10 text-success hover:bg-success/20 transition-colors"
                           >
                             ✓ Confirm Paid
                           </button>
-                        ) : (
-                          <Badge variant="success">{formatCurrency(Number(c.amount))}</Badge>
-                        )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Recorded payments</p>
+                <Badge variant="outline">{confirmedContributions.length}</Badge>
+              </div>
+
+              {confirmedContributions.length === 0 ? (
+                <div className="text-center py-8 space-y-3">
+                  <p className="text-3xl">📬</p>
+                  <p className="text-muted-foreground font-medium">
+                    No confirmed payments yet
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Share the bill or record a payment to get collection moving.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {confirmedContributions.map((c: Contribution) => (
+                    <div key={c.id} className="flex items-center justify-between py-2.5 px-3 -mx-3 rounded-xl hover:bg-muted/30 transition-colors group">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{c.person_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {c.payment_method}
+                          {(c as unknown as { note?: string }).note && (
+                            <span className="ml-1 opacity-60">· {(c as unknown as { note?: string }).note}</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="success">{formatCurrency(Number(c.amount))}</Badge>
                         <button
                           onClick={() => setConfirmDeleteContrib(c)}
                           disabled={deletingContribId === c.id}
@@ -562,45 +703,108 @@ export default function ManagePage() {
                         </button>
                       </div>
                     </div>
-                    );
-                  })}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        {/* Share Link */}
+        {/* Bill Settings */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Share2 className="w-5 h-5 text-primary" />
-              Share
-            </CardTitle>
+            <button
+              type="button"
+              onClick={() => setShowSettings(!showSettings)}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Settings2 className="w-5 h-5 text-primary" />
+                Bill Settings
+              </CardTitle>
+              {showSettings ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                readOnly
-                value={typeof window !== 'undefined' ? `${window.location.origin}/b/${slug}` : `/b/${slug}`}
-                className="font-mono text-sm"
-              />
-              <Button
-                variant="outline"
-                className="gap-1.5 shrink-0"
-                onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/b/${slug}`);
-                  setLinkCopied(true);
-                  setTimeout(() => setLinkCopied(false), 2000);
-                }}
-              >
-                {linkCopied ? (
-                  <><CheckCircle2 className="w-4 h-4 text-success" /> Copied!</>
+          {showSettings && (
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Restaurant Name</label>
+                <Input value={restaurantName} onChange={(e) => setRestaurantName(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Venmo Handle</label>
+                <Input value={venmoHandle} onChange={(e) => setVenmoHandle(sanitizeVenmoHandle(e.target.value))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Zelle Info</label>
+                <Input value={zelleInfo} onChange={(e) => setZelleInfo(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">CashApp Handle</label>
+                <Input value={cashappHandle} onChange={(e) => setCashappHandle(sanitizeCashAppHandle(e.target.value))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">PayPal.me Username</label>
+                <Input value={paypalHandle} onChange={(e) => setPaypalHandle(sanitizePayPalHandle(e.target.value))} placeholder="e.g., johndoe" />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="published">Published</option>
+                  <option value="settled">Settled (Closed)</option>
+                </select>
+              </div>
+              <Button onClick={handleSave} className="w-full gap-2" disabled={saving}>
+                {saving ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : saved ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" /> Saved!
+                  </>
                 ) : (
-                  <><Copy className="w-4 h-4" /> Copy</>
+                  <>
+                    <Save className="w-4 h-4" /> Save Changes
+                  </>
                 )}
               </Button>
-            </div>
-          </CardContent>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Items */}
+        <Card>
+          <CardHeader>
+            <button
+              type="button"
+              onClick={() => setShowItems(!showItems)}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-primary" />
+                Receipt Items ({bill.bill_items?.length || 0})
+              </CardTitle>
+              {showItems ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
+          </CardHeader>
+          {showItems && (
+            <CardContent>
+              <div className="divide-y divide-border/60">
+                {bill.bill_items?.map((item: BillItem) => (
+                  <div key={item.id} className="flex justify-between py-2 gap-3">
+                    <span>{item.name} {item.quantity > 1 ? `×${item.quantity}` : ''}</span>
+                    <span className="font-medium shrink-0">{formatCurrency(Number(item.price))}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
         </Card>
       </div>
 
