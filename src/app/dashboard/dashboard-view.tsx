@@ -373,7 +373,7 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
           <h1 className="text-3xl font-extrabold font-[family-name:var(--font-main)] tracking-tight">
             Host Control Center
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Run your bills, groups, reminders, and payment setup from one place. {userEmail}</p>
+          <p className="text-muted-foreground text-sm mt-1">Run your bills, groups, reminders, and payment setup from one place.</p>
         </div>
 
         {/* Stats — dramatic large numbers */}
