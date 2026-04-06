@@ -42,6 +42,36 @@ function findViewerAttendee(bill: BillWithItems): { member_name: string; expecte
 
 type PayMode = 'split' | 'claim' | 'custom';
 
+type StoredGuestPrefs = {
+  name?: string;
+  paymentMethod?: PaymentMethod;
+};
+
+const GUEST_PREFS_KEY = 'tidytab_guest_prefs';
+
+function readGuestPrefs(): StoredGuestPrefs {
+  if (typeof document === 'undefined') return {};
+  try {
+    const cookie = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(`${GUEST_PREFS_KEY}=`));
+    if (!cookie) return {};
+    const raw = decodeURIComponent(cookie.split('=').slice(1).join('='));
+    return JSON.parse(raw) as StoredGuestPrefs;
+  } catch {
+    return {};
+  }
+}
+
+function writeGuestPrefs(prefs: StoredGuestPrefs) {
+  if (typeof document === 'undefined') return;
+  try {
+    document.cookie = `${GUEST_PREFS_KEY}=${encodeURIComponent(JSON.stringify(prefs))}; Path=/; Max-Age=${60 * 60 * 24 * 180}; SameSite=Lax`;
+  } catch {
+    // ignore
+  }
+}
+
 interface ChipInSectionProps {
   bill: BillWithItems;
   remaining: number;
@@ -77,6 +107,7 @@ export function ChipInSection({
   
   // Whether "More options" is shown (hide if the default mode is already showing what we want)
   const [showMoreOptions, setShowMoreOptions] = useState(initialMode === 'custom' && !hasSplitAmount);
+  const [hasHydratedPrefs, setHasHydratedPrefs] = useState(false);
 
   // Claim mode state: maps virtualId → fraction (1 = full, 0.5 = half, etc.)
   const [claimedItems, setClaimedItems] = useState<Map<string, number>>(new Map());
@@ -89,12 +120,19 @@ export function ChipInSection({
   // Payment details
   const [personName, setPersonName] = useState(() => {
     if (typeof window !== 'undefined') {
+      const cookiePrefs = readGuestPrefs();
+      if (cookiePrefs.name) return cookiePrefs.name;
       try { return localStorage.getItem('tidytab_person_name') || ''; } catch { return ''; }
     }
     return '';
   });
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(() => {
     if (typeof window !== 'undefined') {
+      const cookiePrefs = readGuestPrefs();
+      if (cookiePrefs.paymentMethod === 'venmo' && bill.venmo_handle) return 'venmo';
+      if (cookiePrefs.paymentMethod === 'cashapp' && bill.cashapp_handle) return 'cashapp';
+      if (cookiePrefs.paymentMethod === 'zelle' && bill.zelle_info) return 'zelle';
+      if (cookiePrefs.paymentMethod === 'paypal' && bill.paypal_handle) return 'paypal';
       try {
         const saved = localStorage.getItem('tidytab_payment_method');
         if (saved === 'venmo' && bill.venmo_handle) return 'venmo';
@@ -131,6 +169,69 @@ export function ChipInSection({
   } = usePaymentState({ billId: bill.id, billSlug: bill.slug });
 
   const { recordContribution } = usePaymentPersistence({ billSlug: bill.slug });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateGuestPrefs() {
+      try {
+        const cookiePrefs = typeof window !== 'undefined' ? readGuestPrefs() : {};
+        const savedName = typeof window !== 'undefined'
+          ? cookiePrefs.name || localStorage.getItem('tidytab_person_name') || ''
+          : '';
+        const savedMethod = typeof window !== 'undefined'
+          ? cookiePrefs.paymentMethod || localStorage.getItem('tidytab_payment_method')
+          : null;
+
+        if (savedName && !cancelled) {
+          setPersonName(savedName);
+        }
+
+        if (!savedName) {
+          if (!cancelled) setHasHydratedPrefs(true);
+          return;
+        }
+
+        const res = await fetch('/api/profile', { credentials: 'include' });
+        if (!res.ok) {
+          if (!cancelled) setHasHydratedPrefs(true);
+          return;
+        }
+
+        const { profile } = await res.json();
+        if (cancelled || !profile) {
+          if (!cancelled) setHasHydratedPrefs(true);
+          return;
+        }
+
+        const normalizedSaved = savedName.trim().toLowerCase();
+        const normalizedProfile = (profile.display_name || '').trim().toLowerCase();
+
+        if (normalizedSaved && normalizedProfile && normalizedSaved === normalizedProfile) {
+          const preferred = savedMethod || profile.preferred_payment || null;
+
+          if (preferred === 'venmo' && bill.venmo_handle) setPaymentMethod('venmo');
+          else if (preferred === 'zelle' && bill.zelle_info) setPaymentMethod('zelle');
+          else if (preferred === 'cashapp' && bill.cashapp_handle) setPaymentMethod('cashapp');
+          else if (preferred === 'paypal' && bill.paypal_handle) setPaymentMethod('paypal');
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setHasHydratedPrefs(true);
+      }
+    }
+
+    hydrateGuestPrefs();
+    return () => { cancelled = true; };
+  }, [bill.venmo_handle, bill.zelle_info, bill.cashapp_handle, bill.paypal_handle]);
+
+  useEffect(() => {
+    if (!hasHydratedPrefs) return;
+    if (!personName.trim()) return;
+    if (paymentState !== 'idle') return;
+    setPayFormExpanded(true);
+  }, [hasHydratedPrefs, personName, paymentState]);
 
   // Multi-signal recovery detection
   usePaymentRecovery({
@@ -453,6 +554,8 @@ export function ChipInSection({
       // Save contribution locally
       try {
         localStorage.setItem('tidytab_person_name', personName.trim());
+        localStorage.setItem('tidytab_payment_method', paymentMethod);
+        writeGuestPrefs({ name: personName.trim(), paymentMethod });
         localStorage.setItem(`tidytab_contributed_${bill.slug}`, JSON.stringify({
           name: personName.trim(),
           amount: chipInAmount,
@@ -546,6 +649,8 @@ export function ChipInSection({
         if (patchRes.ok) {
           try {
             localStorage.setItem('tidytab_person_name', personName.trim());
+            localStorage.setItem('tidytab_payment_method', paymentMethod);
+            writeGuestPrefs({ name: personName.trim(), paymentMethod });
             localStorage.setItem(`tidytab_contributed_${bill.slug}`, JSON.stringify({
               name: personName.trim(),
               amount: chipInAmount,
@@ -588,6 +693,8 @@ export function ChipInSection({
       if (res.ok) {
         try {
           localStorage.setItem('tidytab_person_name', personName.trim());
+          localStorage.setItem('tidytab_payment_method', paymentMethod);
+          writeGuestPrefs({ name: personName.trim(), paymentMethod });
           localStorage.setItem(`tidytab_contributed_${bill.slug}`, JSON.stringify({
             name: personName.trim(),
             amount: chipInAmount,
@@ -653,6 +760,7 @@ export function ChipInSection({
                   localStorage.removeItem(`tidytab_contributed_${bill.slug}`);
                   localStorage.removeItem('tidytab_person_name');
                 } catch {}
+                writeGuestPrefs({ paymentMethod });
               }}
               className="block mx-auto text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-1"
             >
@@ -1008,6 +1116,7 @@ export function ChipInSection({
                     onClick={() => {
                       setPersonName('');
                       try { localStorage.removeItem('tidytab_person_name'); } catch {}
+                      writeGuestPrefs({ paymentMethod });
                     }}
                     className="text-xs text-primary hover:underline font-medium"
                   >
@@ -1041,6 +1150,7 @@ export function ChipInSection({
                     onClick={() => {
                       setPaymentMethod('venmo');
                       try { localStorage.setItem('tidytab_payment_method', 'venmo'); } catch {}
+                      writeGuestPrefs({ name: personName.trim(), paymentMethod: 'venmo' });
                     }}
                   >
                     <span className="text-base font-bold block text-[#008CFF]">Venmo</span>
@@ -1058,6 +1168,7 @@ export function ChipInSection({
                     onClick={() => {
                       setPaymentMethod('zelle');
                       try { localStorage.setItem('tidytab_payment_method', 'zelle'); } catch {}
+                      writeGuestPrefs({ name: personName.trim(), paymentMethod: 'zelle' });
                     }}
                   >
                     <span className="text-base font-bold block text-[#6D1ED4]">Zelle</span>
@@ -1075,6 +1186,7 @@ export function ChipInSection({
                     onClick={() => {
                       setPaymentMethod('cashapp');
                       try { localStorage.setItem('tidytab_payment_method', 'cashapp'); } catch {}
+                      writeGuestPrefs({ name: personName.trim(), paymentMethod: 'cashapp' });
                     }}
                   >
                     <span className="text-base font-bold block text-[#00C244]">Cash App</span>
@@ -1092,6 +1204,7 @@ export function ChipInSection({
                     onClick={() => {
                       setPaymentMethod('paypal');
                       try { localStorage.setItem('tidytab_payment_method', 'paypal'); } catch {}
+                      writeGuestPrefs({ name: personName.trim(), paymentMethod: 'paypal' });
                     }}
                   >
                     <span className="text-base font-bold block text-[#003087]">PayPal</span>

@@ -6,8 +6,8 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import type { BillWithItems, Group } from '@/lib/types';
 
 export const metadata = {
-  title: 'Dashboard — TidyTab',
-  description: 'Manage all your bills in one place',
+  title: 'Host Control Center — TidyTab',
+  description: 'Run your groups, bills, reminders, and payment settings in one place',
 };
 
 export default async function DashboardPage() {

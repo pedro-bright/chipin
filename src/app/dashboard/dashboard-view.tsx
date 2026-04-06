@@ -122,6 +122,7 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [preferredPayment, setPreferredPayment] = useState<'venmo' | 'zelle' | 'cashapp' | 'paypal'>('venmo');
 
   // Badges state
   const [userBadges, setUserBadges] = useState<UserBadge[]>([]);
@@ -138,6 +139,9 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
           setProfileZelle(profile.zelle_info || '');
           setProfileCashapp(profile.cashapp_handle || '');
           setProfilePaypal(profile.paypal_handle || '');
+          if (['venmo', 'zelle', 'cashapp', 'paypal'].includes(profile.preferred_payment)) {
+            setPreferredPayment(profile.preferred_payment);
+          }
         }
       })
       .catch(() => {})
@@ -170,6 +174,7 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
           zelle_info: profileZelle,
           cashapp_handle: profileCashapp,
           paypal_handle: profilePaypal,
+          preferred_payment: preferredPayment,
         }),
       });
       setProfileSaved(true);
@@ -366,9 +371,9 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
         {/* Welcome */}
         <div className="enter">
           <h1 className="text-3xl font-extrabold font-[family-name:var(--font-main)] tracking-tight">
-            Your Dashboard
+            Host Control Center
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">{userEmail}</p>
+          <p className="text-muted-foreground text-sm mt-1">Run your bills, groups, reminders, and payment setup from one place. {userEmail}</p>
         </div>
 
         {/* Stats — dramatic large numbers */}
@@ -381,7 +386,7 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
                 {totalBills}
               </p>
               <p className="text-xs text-muted-foreground mt-1 font-medium">
-                Bills
+                Hosted Bills
               </p>
             </CardContent>
           </Card>
@@ -393,7 +398,7 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
                 {formatCurrency(totalCollected)}
               </p>
               <p className="text-xs text-muted-foreground mt-1 font-medium">
-                Collected
+                Total Collected
               </p>
             </CardContent>
           </Card>
@@ -409,25 +414,32 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
                 {needsFollowUp}
               </p>
               <p className="text-xs text-muted-foreground mt-1 font-medium">
-                Pending
+                Need Follow-up
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Quick Action: Bulk remind */}
-        {needsFollowUp > 0 && (
-          <div className="flex gap-3 enter enter-delay-4">
-            <Button
-              onClick={handleBulkShare}
-              variant="outline"
-              className="flex-1 gap-2 h-11"
-            >
-              <Send className="w-4 h-4 text-primary" />
-              Send {needsFollowUp} Reminder{needsFollowUp > 1 ? 's' : ''}
-            </Button>
-          </div>
-        )}
+        {/* Quick Actions: host follow-up */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 enter enter-delay-4">
+          <LinkButton href="/new" className="gap-2 h-11">
+            <Plus className="w-4 h-4" />
+            New Bill
+          </LinkButton>
+          <LinkButton href="/groups/new" variant="outline" className="gap-2 h-11">
+            <Users className="w-4 h-4" />
+            New Group
+          </LinkButton>
+          <Button
+            onClick={handleBulkShare}
+            variant="outline"
+            className="gap-2 h-11"
+            disabled={needsFollowUp === 0}
+          >
+            <Send className="w-4 h-4 text-primary" />
+            {needsFollowUp > 0 ? `Send ${needsFollowUp} Reminder${needsFollowUp > 1 ? 's' : ''}` : 'No Reminders Needed'}
+          </Button>
+        </div>
 
         {/* Groups Section */}
         {(groups.length > 0 || true) && (
@@ -435,7 +447,7 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold font-[family-name:var(--font-main)] flex items-center gap-2">
                 <Users className="w-5 h-5 text-primary" />
-                Your Groups
+                Groups You Run
               </h2>
               <LinkButton href="/groups/new" size="sm" variant="outline" className="gap-1.5">
                 <Plus className="w-3.5 h-3.5" />
@@ -446,7 +458,7 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
               <Card className="border-dashed">
                 <CardContent className="pt-6 pb-6 text-center space-y-3">
                   <p className="text-muted-foreground text-sm">
-                    No groups yet. Create one to track shared expenses.
+                    No groups yet. Create one to run recurring shared expenses for roommates, trips, clubs, teams, or friend groups.
                   </p>
                   <LinkButton href="/groups/new" size="sm" className="gap-1.5">
                     <Plus className="w-4 h-4" />
@@ -480,6 +492,24 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
               </div>
             )}
           </div>
+        )}
+
+        {/* Needs Attention */}
+        {needsFollowUp > 0 && (
+          <Card className="border-primary/25 bg-primary/5 enter enter-delay-4b">
+            <CardContent className="pt-5 pb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Needs attention</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {needsFollowUp} hosted bill{needsFollowUp > 1 ? 's still need' : ' still needs'} follow-up.
+                </p>
+              </div>
+              <Button onClick={handleBulkShare} className="gap-2 sm:shrink-0">
+                <Send className="w-4 h-4" />
+                Remind everyone
+              </Button>
+            </CardContent>
+          </Card>
         )}
 
         {/* Tabs */}
@@ -684,7 +714,7 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
                 <User className="w-5 h-5 text-primary" />
-                Your Profile
+                Host Profile & Payouts
               </CardTitle>
               <button
                 onClick={() => setShowProfile(!showProfile)}
@@ -715,7 +745,7 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
                   </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Set up your name and payment methods to auto-fill on new bills.
+                    Set up your host name and payout methods so new bills are ready to go faster.
                   </p>
                 )}
               </div>
@@ -772,6 +802,42 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
                   onChange={(e) => setProfilePaypal(sanitizePayPalHandle(e.target.value))}
                   placeholder="e.g., johndoe"
                 />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">Default payout method</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {([
+                    ['venmo', 'Venmo'],
+                    ['zelle', 'Zelle'],
+                    ['cashapp', 'Cash App'],
+                    ['paypal', 'PayPal'],
+                  ] as const).map(([value, label]) => {
+                    const disabled =
+                      (value === 'venmo' && !profileVenmo.trim()) ||
+                      (value === 'zelle' && !profileZelle.trim()) ||
+                      (value === 'cashapp' && !profileCashapp.trim()) ||
+                      (value === 'paypal' && !profilePaypal.trim());
+
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => setPreferredPayment(value)}
+                        className={`p-3 rounded-xl border text-sm font-medium transition-all ${
+                          preferredPayment === value
+                            ? 'border-primary bg-primary/5 text-primary ring-2 ring-primary/20'
+                            : 'border-border text-muted-foreground hover:text-foreground'
+                        } ${disabled ? 'opacity-40 cursor-not-allowed hover:text-muted-foreground' : ''}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Returning guests default to this method when we know who they are.
+                </p>
               </div>
               <div className="flex gap-3 items-center">
                 <Button onClick={handleSaveProfile} disabled={profileSaving} className="gap-2">
@@ -843,7 +909,7 @@ export function DashboardView({ bills, userEmail, userId: _userId, groups = [] }
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Link2 className="w-5 h-5 text-primary" />
-                Claim a Bill
+                Claim Existing Bill
               </CardTitle>
               <button
                 onClick={() => setShowClaim(!showClaim)}

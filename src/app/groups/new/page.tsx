@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/client';
 import { Sparkles, Users, ChevronLeft, ChevronDown, CreditCard } from 'lucide-react';
+
+type PreferredPayment = 'venmo' | 'zelle' | 'cashapp' | 'paypal';
 import { sanitizeVenmoHandle, sanitizeCashAppHandle, sanitizePayPalHandle } from '@/lib/utils';
 
 const EMOJI_OPTIONS = ['🍽️', '🍕', '🍣', '🍔', '🌮', '🥘', '🏠', '💼', '🎉', '🏖️', '⚽', '🎓', '🍻', '🎵', '🚗', '❤️'];
@@ -22,6 +24,7 @@ export default function NewGroupPage() {
   const [zelleInfo, setZelleInfo] = useState('');
   const [cashappHandle, setCashappHandle] = useState('');
   const [paypalHandle, setPaypalHandle] = useState('');
+  const [preferredPayment, setPreferredPayment] = useState<PreferredPayment>('venmo');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -39,10 +42,29 @@ export default function NewGroupPage() {
         .then(({ profile }) => {
           if (profile) {
             if (profile.display_name) setCreatorName(profile.display_name);
-            if (profile.venmo_handle) setVenmoHandle(profile.venmo_handle);
-            if (profile.zelle_info) setZelleInfo(profile.zelle_info);
-            if (profile.cashapp_handle) setCashappHandle(profile.cashapp_handle);
-            if (profile.paypal_handle) setPaypalHandle(profile.paypal_handle);
+
+            const preferred = profile.preferred_payment;
+            const hasPreferred =
+              (preferred === 'venmo' && profile.venmo_handle) ||
+              (preferred === 'zelle' && profile.zelle_info) ||
+              (preferred === 'cashapp' && profile.cashapp_handle) ||
+              (preferred === 'paypal' && profile.paypal_handle);
+
+            if (['venmo', 'zelle', 'cashapp', 'paypal'].includes(preferred)) {
+              setPreferredPayment(preferred);
+            }
+
+            if (hasPreferred) {
+              setVenmoHandle(preferred === 'venmo' ? profile.venmo_handle || '' : '');
+              setZelleInfo(preferred === 'zelle' ? profile.zelle_info || '' : '');
+              setCashappHandle(preferred === 'cashapp' ? profile.cashapp_handle || '' : '');
+              setPaypalHandle(preferred === 'paypal' ? profile.paypal_handle || '' : '');
+            } else {
+              if (profile.venmo_handle) setVenmoHandle(profile.venmo_handle);
+              if (profile.zelle_info) setZelleInfo(profile.zelle_info);
+              if (profile.cashapp_handle) setCashappHandle(profile.cashapp_handle);
+              if (profile.paypal_handle) setPaypalHandle(profile.paypal_handle);
+            }
           }
         })
         .catch(() => {});
@@ -79,6 +101,7 @@ export default function NewGroupPage() {
           zelle_info: zelleInfo.trim() || null,
           cashapp_handle: cashappHandle.trim() || null,
           paypal_handle: paypalHandle.trim() || null,
+          preferred_payment: preferredPayment,
         }),
       });
 
@@ -250,6 +273,43 @@ export default function NewGroupPage() {
                   onChange={(e) => setPaypalHandle(sanitizePayPalHandle(e.target.value))}
                   placeholder="johndoe"
                 />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium mb-1.5 block text-muted-foreground">Default payout method</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    ['venmo', 'Venmo'],
+                    ['zelle', 'Zelle'],
+                    ['cashapp', 'Cash App'],
+                    ['paypal', 'PayPal'],
+                  ] as const).map(([value, label]) => {
+                    const disabled =
+                      (value === 'venmo' && !venmoHandle.trim()) ||
+                      (value === 'zelle' && !zelleInfo.trim()) ||
+                      (value === 'cashapp' && !cashappHandle.trim()) ||
+                      (value === 'paypal' && !paypalHandle.trim());
+
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => setPreferredPayment(value)}
+                        className={`p-3 rounded-xl border text-sm font-medium transition-all ${
+                          preferredPayment === value
+                            ? 'border-primary bg-primary/5 text-primary ring-2 ring-primary/20'
+                            : 'border-border text-muted-foreground hover:text-foreground'
+                        } ${disabled ? 'opacity-40 cursor-not-allowed hover:text-muted-foreground' : ''}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  New group expenses will default to this method when it&apos;s available.
+                </p>
               </div>
             </div>
 

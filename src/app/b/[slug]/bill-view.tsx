@@ -215,13 +215,10 @@ export function BillView({ bill, isCreator, hostKey: initialHostKey, isAuthHost,
 
   const handleShare = async () => {
     const url = window.location.origin + `/b/${bill.slug}`;
-    const perPerson = effectivePersonCount > 0
-      ? ` (~${formatCurrency(bill.total / effectivePersonCount)}/person)`
-      : '';
     const isFullyCovered = remaining <= 0 && totalPaid > 0;
     const text = isFullyCovered
-      ? `We split ${formatCurrency(totalPaid)} ${contributions.length > 1 ? `${contributions.length} ways` : ''} at ${bill.restaurant_name || 'dinner'} — zero drama!`
-      : `Chip in for ${bill.restaurant_name || 'dinner'}! ${formatCurrency(bill.total)} total${perPerson} — pay in one tap`;
+      ? `We squared up ${formatCurrency(totalPaid)} at ${bill.restaurant_name || 'dinner'} with TidyTab.`
+      : `Pay for your dish or chip in for ${bill.restaurant_name || 'the bill'} with TidyTab.`;
 
     if (navigator.share) {
       try {

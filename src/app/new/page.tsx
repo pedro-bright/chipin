@@ -252,10 +252,25 @@ export default function NewBillPage() {
           .then(({ profile }) => {
             if (profile) {
               if (profile.display_name) setHostName(profile.display_name);
-              if (profile.venmo_handle) setVenmoHandle(profile.venmo_handle);
-              if (profile.zelle_info) setZelleInfo(profile.zelle_info);
-              if (profile.cashapp_handle) setCashappHandle(profile.cashapp_handle);
-              if (profile.paypal_handle) setPaypalHandle(profile.paypal_handle);
+
+              const preferred = profile.preferred_payment;
+              const hasPreferred =
+                (preferred === 'venmo' && profile.venmo_handle) ||
+                (preferred === 'zelle' && profile.zelle_info) ||
+                (preferred === 'cashapp' && profile.cashapp_handle) ||
+                (preferred === 'paypal' && profile.paypal_handle);
+
+              if (hasPreferred) {
+                setVenmoHandle(preferred === 'venmo' ? profile.venmo_handle || '' : '');
+                setZelleInfo(preferred === 'zelle' ? profile.zelle_info || '' : '');
+                setCashappHandle(preferred === 'cashapp' ? profile.cashapp_handle || '' : '');
+                setPaypalHandle(preferred === 'paypal' ? profile.paypal_handle || '' : '');
+              } else {
+                if (profile.venmo_handle) setVenmoHandle(profile.venmo_handle);
+                if (profile.zelle_info) setZelleInfo(profile.zelle_info);
+                if (profile.cashapp_handle) setCashappHandle(profile.cashapp_handle);
+                if (profile.paypal_handle) setPaypalHandle(profile.paypal_handle);
+              }
             }
           })
           .catch(() => {});

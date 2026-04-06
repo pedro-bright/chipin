@@ -44,6 +44,11 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const body = await request.json();
+  const allowedPreferredPayments = new Set(['venmo', 'zelle', 'cashapp', 'paypal']);
+  const preferredPayment = allowedPreferredPayments.has(body.preferred_payment)
+    ? body.preferred_payment
+    : null;
+
   const profileData = {
     id: user.id,
     display_name: body.display_name || null,
@@ -51,6 +56,7 @@ export async function POST(request: NextRequest) {
     zelle_info: body.zelle_info || null,
     cashapp_handle: body.cashapp_handle || null,
     paypal_handle: body.paypal_handle || null,
+    preferred_payment: preferredPayment,
     updated_at: new Date().toISOString(),
   };
 

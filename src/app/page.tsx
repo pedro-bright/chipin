@@ -14,6 +14,7 @@ export default function Home() {
     <main className="bg-background overflow-x-hidden">
       <Nav />
       <HeroSection />
+      <ProofStrip />
       <FeatureStrip />
       <HowItWorks />
       <StickyMobileCTA />
@@ -90,7 +91,7 @@ function HeroSection() {
           </h1>
 
           <p className="text-base sm:text-xl text-muted-foreground max-w-md mx-auto lg:mx-0 leading-relaxed enter enter-delay-1">
-            Snap a receipt, share a link, get paid. No app&nbsp;needed.
+            Snap a receipt, share a link, get paid. Great for dinners, trips, roommates, parties, and any group expense. No app&nbsp;needed.
           </p>
 
           <div id="hero-cta" className="enter enter-delay-2">
@@ -103,7 +104,7 @@ function HeroSection() {
               <Plus className="w-5 h-5" aria-hidden="true" />
               Create a Bill — it&apos;s free
             </LinkButton>
-            <p className="text-xs text-muted-foreground mt-3 text-center lg:text-left">Loved by MBA cohorts &amp; friend groups</p>
+            <p className="text-xs text-muted-foreground mt-3 text-center lg:text-left">Built for dinners, trips, roommates, parties, and every messy group tab</p>
           </div>
         </div>
 
@@ -252,11 +253,32 @@ function MobileMockupTeaser() {
 /* ------------------------------------------------------------------
    Feature Strip — tight, no descriptions
    ------------------------------------------------------------------ */
+function ProofStrip() {
+  const proofPoints = [
+    'Made for dinners, trips, roommates, and parties',
+    'Designed to help groups settle fast',
+    'No app downloads or awkward follow-ups',
+  ];
+
+  return (
+    <section className="border-b border-border/40 py-3 bg-background/80">
+      <div className="max-w-5xl mx-auto px-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-center">
+        {proofPoints.map((point) => (
+          <p key={point} className="text-xs sm:text-sm text-muted-foreground font-medium">
+            {point}
+          </p>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function FeatureStrip() {
   const features = [
     'AI Receipt Scan',
     'No App Needed',
     'Groups',
+    'Settle Fast',
     'Always Free',
   ];
 
