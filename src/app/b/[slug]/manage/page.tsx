@@ -380,13 +380,13 @@ export default function ManagePage() {
         {/* Collection Status */}
         <Card className={`${status === 'settled' ? 'bg-success/5 border-success/20' : 'bg-primary/5 border-primary/20'}`}>
           <CardContent className="pt-6 space-y-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="space-y-1">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-1 min-w-0 lg:flex-1">
                 <p className="text-sm text-muted-foreground">Host collection status</p>
                 <h2 className={`text-2xl font-bold font-[family-name:var(--font-main)] ${statusTone}`}>
                   {statusLabel}
                 </h2>
-                <p className="text-sm text-muted-foreground max-w-md">
+                <p className="text-sm text-muted-foreground max-w-md pr-0 lg:pr-4 break-words text-balance">
                   {status === 'settled'
                     ? 'This bill is closed out and archived.'
                     : remaining <= 0
@@ -396,16 +396,16 @@ export default function ManagePage() {
                         : `${formatCurrency(remaining)} is still open. Share the link or record outside payments to finish this off.`}
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:w-[260px]">
-                <Button onClick={handleNativeShare} className="gap-2" disabled={sharing}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full lg:w-[280px] lg:flex-none">
+                <Button onClick={handleNativeShare} className="gap-2 min-w-0" disabled={sharing}>
                   <Share2 className="w-4 h-4" />
                   {sharing ? 'Sharing...' : 'Share'}
                 </Button>
-                <Button onClick={handleCopyReminder} variant="outline" className="gap-2">
+                <Button onClick={handleCopyReminder} variant="outline" className="gap-2 min-w-0 px-3 text-sm sm:text-[13px] lg:text-sm">
                   {reminderCopied ? <CheckCircle2 className="w-4 h-4 text-success" /> : <Send className="w-4 h-4" />}
                   {reminderCopied ? 'Copied' : 'Copy Reminder'}
                 </Button>
-                <Button onClick={handleQuickSettle} variant="outline" className="gap-2 col-span-2" disabled={settlingBill || status === 'settled'}>
+                <Button onClick={handleQuickSettle} variant="outline" className="gap-2 sm:col-span-2 min-w-0" disabled={settlingBill || status === 'settled'}>
                   <CheckCircle2 className="w-4 h-4" />
                   {status === 'settled' ? 'Already Settled' : settlingBill ? 'Settling...' : 'Mark as Settled'}
                 </Button>
@@ -470,14 +470,14 @@ export default function ManagePage() {
                 </div>
               )}
               {remaining > 0 && (
-                <div className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background/70 p-3">
-                  <div>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 rounded-xl border border-border/60 bg-background/70 p-3">
+                  <div className="min-w-0">
                     <p className="font-medium">Keep collection moving</p>
                     <p className="text-sm text-muted-foreground">
                       {formatCurrency(remaining)} is still outstanding{unpaidCount > 0 ? ` across about ${unpaidCount} unpaid ${unpaidCount === 1 ? 'person' : 'people'}` : ''}.
                     </p>
                   </div>
-                  <Badge variant="outline">Open balance</Badge>
+                  <Badge variant="outline" className="self-start sm:self-center">Open balance</Badge>
                 </div>
               )}
             </CardContent>
