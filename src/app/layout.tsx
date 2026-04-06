@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Space_Grotesk, Newsreader } from 'next/font/google';
 import Link from 'next/link';
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 import { SWRegister } from '@/components/sw-register';
 import './globals.css';
@@ -94,6 +95,7 @@ export default function RootLayout({
           <div className="flex-1">{children}</div>
           <SWRegister />
           <Analytics />
+      <SpeedInsights />
 
           {/* Footer */}
           <footer className="border-t border-border/30 py-8 sm:py-10 bg-background">
